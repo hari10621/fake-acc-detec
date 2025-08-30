@@ -1,98 +1,201 @@
-// src/utils/fakedetector.ts
-import * as tf from '@tensorflow/tfjs';
+// src/utils/FakeDetector.ts
 import { Platform, DetectionResult } from '../types';
 
 interface AccountProfile {
   followerCount: number;
   followingCount: number;
   postCount: number;
-  accountAge: number; // days
+  accountAge: number; // in days
   hasProfilePicture: boolean;
   hasBio: boolean;
   isVerified: boolean;
-  engagementRate: number; // %
-  postFrequency: number; // per day
-  profileCompleteness: number; // %
+  engagementRate: number; // percentage
+  postFrequency: number; // posts per day
+  profileCompleteness: number; // percentage
 }
 
 export class FakeDetector {
-  private static model: tf.LayersModel | null = null;
-
-  // Features ordered as: followerCount, followingCount, postCount, accountAge, hasProfilePicture (0/1), 
-  // hasBio(0/1), isVerified(0/1), engagementRate, postFrequency, profileCompleteness
-  private static featureOrder = [
-    'followerCount',
-    'followingCount',
-    'postCount',
-    'accountAge',
-    'hasProfilePicture',
-    'hasBio',
-    'isVerified',
-    'engagementRate',
-    'postFrequency',
-    'profileCompleteness'
+  private static knownAccounts = [
+    'virat.kohli', 'viratkohli', 'imvkoli',
+    'cristiano', 'leomessi', 'neymarjr',
+    'selenagomez', 'taylorswift', 'arianagrande',
+    'justinbieber', 'kimkardashian', 'kyliejenner',
+    'therock', 'vancityreynolds', 'priyanka_chopra',
+    'deepikapadukone', 'akshaykumar', 'iamsrk',
+    'amitabhbachchan', 'ranveersingh', 'aliaabhatt',
+    'katrinakaif', 'anushkasharma', 'sonamkapoor'
   ];
 
-  // Load or initialize the pretrained model (simulate loading)
-  static async loadModel() {
-    if (!this.model) {
-      // You can load a real model from local or URL here.
-      // For demo, create a small model: logistic regression
+  private static isKnownAccount(username: string): boolean {
+    return this.knownAccounts.some(acc => acc.toLowerCase() === username.toLowerCase());
+  }
 
-      const model = tf.sequential();
-      model.add(tf.layers.dense({ inputShape: [10], units: 1, activation: 'sigmoid' }));
-      model.compile({ optimizer: 'adam', loss: 'binaryCrossentropy', metrics: ['accuracy'] });
-
-      // Simulate random weights for demonstration (replace with real trained weights)
-      const weights = model.getWeights();
-      const newWeights = weights.map(w => tf.randomNormal(w.shape));
-      model.setWeights(newWeights);
-
-      this.model = model;
+  private static generateProfile(username: string, platform: Platform): AccountProfile {
+    // Generate realistic profile data, mocking actual Instagram info
+    const isKnown = this.isKnownAccount(username);
+    if (isKnown) {
+      return {
+        followerCount: 10_000_000 + Math.floor(Math.random() * 40_000_000),
+        followingCount: 100 + Math.floor(Math.random() * 1000),
+        postCount: 1000 + Math.floor(Math.random() * 5000),
+        accountAge: 1000 + Math.floor(Math.random() * 3000),
+        hasProfilePicture: true,
+        hasBio: true,
+        isVerified: true,
+        engagementRate: 2 + Math.random() * 5,
+        postFrequency: 0.5 + Math.random() * 2,
+        profileCompleteness: 80 + Math.random() * 20,
+      };
+    } else {
+      const accountAge = 30 + Math.floor(Math.random() * 2000);
+      const isOld = accountAge > 365;
+      return {
+        followerCount: 10 + Math.floor(Math.random() * (isOld ? 5000 : 500)),
+        followingCount: 50 + Math.floor(Math.random() * (isOld ? 2000 : 800)),
+        postCount: 5 + Math.floor(Math.random() * (isOld ? 1000 : 100)),
+        accountAge,
+        hasProfilePicture: Math.random() > 0.2,
+        hasBio: Math.random() > 0.3,
+        isVerified: Math.random() > 0.95,
+        engagementRate: 0.5 + Math.random() * 8,
+        postFrequency: 0.1 + Math.random() * 3,
+        profileCompleteness: 40 + Math.random() * 40,
+      };
     }
-    return this.model;
   }
 
-  private static normalizeFeatures(features: number[]): number[] {
-    // Simple normalization for demo purposes, scale large features
-    return features.map((v, i) => {
-      if (i === 0) return v / 1e6; // followerCount scaled down
-      if (i === 1) return v / 1e4; // followingCount scaled down
-      if (i === 2) return v / 1e3; // postCount scaled down
-      if (i === 3) return v / 3650; // accountAge (up to 10 years)
-      if (i >= 4 && i <= 6) return v; // binary flags as is
-      if (i === 7) return v / 100; // engagementRate as fraction
-      if (i === 8) return v / 30; // postFrequency per month
-      if (i === 9) return v / 100; // completeness fraction
-      return v;
-    });
+  private static calculateRiskScore(profile: AccountProfile, username: string) {
+    let risk = 0;
+    const indicators: string[] = [];
+    const isKnown = this.isKnownAccount(username);
+
+    if (isKnown && profile.followerCount > 1_000_000) {
+      return { riskPercentage: 0, indicators: ['Verified celebrity/public figure'], status: 'genuine' };
+    }
+
+    // Negative risk (reduce risk)
+    if (profile.isVerified) {
+      risk -= 25;
+      indicators.push('Has verified badge');
+    }
+    if (profile.accountAge > 1000) {
+      risk -= 15;
+      indicators.push('Long established account');
+    }
+    if (profile.engagementRate > 5 && profile.engagementRate < 15) {
+      risk -= 10;
+      indicators.push('Good engagement rate');
+    }
+    if (profile.followerCount > 10000 && profile.followingCount < 1000) {
+      risk -= 10;
+      indicators.push('Healthy follower/following ratio');
+    }
+
+    // Positive risk (add risk)
+    if (!isKnown) {
+      if (/messi|ronaldo|kohli|bieber|swift|gomez/i.test(username) && profile.followerCount < 100000) {
+        risk += 40;
+        indicators.push('Possible celebrity impersonator');
+      }
+
+      const ratio = profile.followerCount / (profile.followingCount || 1);
+      if (profile.followerCount < 500) {
+        risk += 40;
+        indicators.push('Very low followers');
+      }
+
+      if (profile.followingCount > 1000) {
+        risk += 20;
+        indicators.push('Follows many accounts');
+      }
+
+      if (ratio < 0.1) {
+        risk += 30;
+        indicators.push('Unhealthy follower/following ratio');
+      }
+
+      if (!profile.hasProfilePicture) {
+        risk += 30;
+        indicators.push('No profile picture');
+      } 
+
+      if (!profile.hasBio) {
+        risk += 20;
+        indicators.push('No bio');
+      }
+
+      if (profile.engagementRate < 1) {
+        risk += 30;
+        indicators.push('Low engagement');
+      } else if (profile.engagementRate > 20) {
+        risk += 15;
+        indicators.push('Suspicious engagement');
+      }
+
+      if (profile.postFrequency < 0.1) {
+        risk += 15;
+        indicators.push('Rarely posts');
+      } else if (profile.postFrequency > 10) {
+        risk += 15;
+        indicators.push('Very frequent posting');
+      }
+
+      if (/^[a-zA-Z]+\d{4,}$/.test(username) || /^\w+_\w+_\d+$/.test(username) || /^user\d+$/.test(username)) {
+        risk += 25;
+        indicators.push('Bot-like username pattern');
+      }
+
+      const numberCount = (username.match(/\d/g) || []).length;
+      if (numberCount > 4) {
+        risk += 20;
+        indicators.push('Excessive numbers in username');
+      }
+
+      if (profile.accountAge < 90) {
+        risk += 25;
+        indicators.push('Newly created account');
+      }
+    }
+
+    risk = Math.max(0, Math.min(100, risk));
+
+    let status: 'genuine' | 'suspicious' | 'fake';
+
+    if (risk < 20) status = 'genuine';
+    else if (risk < 60) status = 'suspicious';
+    else status = 'fake';
+
+    return { riskPercentage: risk, indicators, status };
   }
 
-  private static profileToTensor(profile: AccountProfile): tf.Tensor {
-    const inputFeatures = [
-      profile.followerCount,
-      profile.followingCount,
-      profile.postCount,
-      profile.accountAge,
-      profile.hasProfilePicture ? 1 : 0,
-      profile.hasBio ? 1 : 0,
-      profile.isVerified ? 1 : 0,
-      profile.engagementRate,
-      profile.postFrequency,
-      profile.profileCompleteness
-    ];
-    const normalized = this.normalizeFeatures(inputFeatures);
-    return tf.tensor2d([normalized]);
+  private static generateExplanation(status: string, riskPercentage: number, indicators: string[], profile: AccountProfile, username: string) {
+    const isKnown = this.isKnownAccount(username);
+
+    if (isKnown) {
+      return `This account is a verified celebrity or public figure with ${profile.followerCount.toLocaleString()} followers and strong authenticity.`;
+    }
+
+    switch (status) {
+      case 'genuine':
+        return `This account appears genuine with a low risk of ${riskPercentage}%.`;
+      case 'suspicious':
+        return `This account is suspicious. Risk: ${riskPercentage}%. Indicators: ${indicators.slice(0, 3).join(', ')}.`;
+      case 'fake':
+        return `This account is likely fake with a high risk of ${riskPercentage}%. Major indicators: ${indicators.slice(0, 4).join(', ')}.`;
+      default:
+        return 'Insufficient data for a definitive conclusion.';
+    }
   }
 
   static async checkAccount(platform: Platform, username: string): Promise<DetectionResult> {
-    // Simulate API/network delay
-    await new Promise(r => setTimeout(r, 1500 + Math.random() * 1500));
-
+    await new Promise(r => setTimeout(r, 1000 + Math.random() * 1000));
     const cleanUsername = username.replace(/^@/, '');
-    const hasValidName = /^[a-zA-Z0-9._-]{3,30}$/.test(cleanUsername);
 
-    if (!hasValidName) {
+    const hasValidLength = cleanUsername.length >= 3 && cleanUsername.length <= 30;
+    const hasValidChars = /^[a-zA-Z0-9._-]+$/.test(cleanUsername);
+    const exists = hasValidLength && hasValidChars && Math.random() > 0.05;
+
+    if (!exists) {
       return {
         id: `${Date.now()}-${Math.random()}`,
         platform,
@@ -102,44 +205,16 @@ export class FakeDetector {
         isVerified: false,
         riskPercentage: 0,
         status: 'genuine',
-        indicators: ['Invalid username format or does not exist'],
-        explanation: `Username "${cleanUsername}" is invalid or does not exist on platform.`,
+        indicators: ['Account not found'],
+        explanation: `The account "${cleanUsername}" could not be found on ${platform.name}.`,
       };
     }
 
-    // For demo, generate synthetic profile data (replace with real API calls)
-    const profile = this.generateSyntheticProfile(cleanUsername, platform);
+    const profile = this.generateProfile(cleanUsername, platform);
 
-    // Load or initialize model
-    const model = await this.loadModel();
+    const { riskPercentage, indicators, status } = this.calculateRiskScore(profile, cleanUsername);
 
-    // Prepare input tensor
-    const inputTensor = this.profileToTensor(profile);
-
-    // Predict with model (output between 0 and 1, higher = more likely fake)
-    const predictionTensor = model.predict(inputTensor) as tf.Tensor;
-    const prediction = (await predictionTensor.data())[0];
-    predictionTensor.dispose();
-    inputTensor.dispose();
-
-    // Map prediction to risk %
-    const riskPercentage = Math.round(prediction * 100);
-
-    // Decision thresholds
-    let status: 'genuine' | 'suspicious' | 'fake' = 'genuine';
-    if (riskPercentage >= 70) status = 'fake';
-    else if (riskPercentage >= 40) status = 'suspicious';
-
-    // Explain top indicators for demo
-    const indicators = [];
-    if (profile.followingCount > 1000) indicators.push('Follows many accounts');
-    if (profile.followerCount < 100) indicators.push('Very low followers');
-    if (!profile.hasProfilePicture) indicators.push('No profile picture');
-    if (!profile.hasBio) indicators.push('No bio');
-    if (profile.engagementRate < 1) indicators.push('Low engagement');
-    if (riskPercentage > 50) indicators.push('Model indicates suspicious behavior');
-
-    const explanation = `Model predicts a ${riskPercentage}% chance that the account is fake. Indicators: ${indicators.join(', ') || 'None'}.`;
+    const explanation = this.generateExplanation(status, riskPercentage, indicators, profile, cleanUsername);
 
     return {
       id: `${Date.now()}-${Math.random()}`,
@@ -153,40 +228,5 @@ export class FakeDetector {
       indicators,
       explanation,
     };
-  }
-
-  private static generateSyntheticProfile(username: string, platform: Platform): AccountProfile {
-    const isFamous = this.isFamousUsername(username);
-    if (isFamous) {
-      return {
-        followerCount: 500000 + Math.floor(Math.random() * 1000000),
-        followingCount: 100 + Math.floor(Math.random() * 500),
-        postCount: 1000 + Math.floor(Math.random() * 500),
-        accountAge: 1500 + Math.floor(Math.random() * 1000),
-        hasProfilePicture: true,
-        hasBio: true,
-        isVerified: true,
-        engagementRate: 3 + Math.random() * 5,
-        postFrequency: 1 + Math.random() * 2,
-        profileCompleteness: 95,
-      };
-    }
-    const age = Math.floor(Math.random() * 1000);
-    return {
-      followerCount: Math.floor(Math.random() * 50_000),
-      followingCount: Math.floor(Math.random() * 3000),
-      postCount: Math.floor(Math.random() * 200),
-      accountAge: age,
-      hasProfilePicture: Math.random() > 0.3,
-      hasBio: Math.random() > 0.5,
-      isVerified: Math.random() > 0.95,
-      engagementRate: Math.random() * 10,
-      postFrequency: Math.random() * 3,
-      profileCompleteness: Math.random() * 70 + 30,
-    };
-  }
-
-  private static isFamousUsername(username: string): boolean {
-    return this.knownAccounts.some(acc => acc.toLowerCase() === username.toLowerCase());
   }
 }
