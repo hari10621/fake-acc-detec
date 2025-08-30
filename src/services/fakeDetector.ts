@@ -74,13 +74,11 @@ export class FakeDetector {
     const indicators: string[] = [];
     let risk = 0;
 
-    // Helper to add risk and indicator
     const addRisk = (amount: number, indicator: string) => {
       risk += amount;
       indicators.push(indicator);
     };
 
-    // Risk evaluation
     if (profile.followerCount < 500) addRisk(30, 'Very low follower count');
     else if (profile.followerCount < 1000) addRisk(15, 'Low follower count');
 
@@ -133,14 +131,14 @@ export class FakeDetector {
   }
 
   static async checkAccount(platform: Platform, username: string): Promise<DetectionResult> {
-    // Simulate API delay
+    // Simulate API call delay
     await new Promise(res => setTimeout(res, 2000 + Math.random() * 3000));
 
     const cleanUsername = username.replace(/^@/, '');
 
-    const hasReasonableLength = cleanUsername.length >= 3 && cleanUsername.length <= 30;
-    const hasValidChars = /^[a-zA-Z0-9._-]+$/.test(cleanUsername);
-    const exists = hasReasonableLength && hasValidChars && Math.random() > 0.05;
+    // Username validation and existence simulation
+    const hasValidFormat = /^[a-zA-Z0-9._-]{3,30}$/.test(cleanUsername);
+    const exists = hasValidFormat && Math.random() > 0.05; // 95% chance exists
 
     if (!exists) {
       return {
@@ -153,14 +151,16 @@ export class FakeDetector {
         riskPercentage: 0,
         status: 'genuine',
         indicators: ['Account not found or invalid username format'],
-        explanation: `Username "${cleanUsername}" does not exist on ${platform.name} or has invalid format.`,
+        explanation: `The username "${cleanUsername}" does not exist on ${platform.name} or is invalid.`,
       };
     }
 
+    // Generate user profile data
     const profile = this.generateRealisticProfile(cleanUsername, platform);
 
     if (!profile) throw new Error('Profile generation failed');
 
+    // Run detection algorithm
     const { riskPercentage, indicators, status } = this.decisionTreeRiskClassifier(profile, cleanUsername);
 
     const explanation = this.generateExplanation(status, riskPercentage, indicators, profile, cleanUsername);
