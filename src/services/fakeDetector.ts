@@ -63,7 +63,7 @@ export class FakeDetector {
     };
   }
 
-  private static decisionTreeRiskClassifier(profile: AccountProfile | undefined, username: string): {
+  private static decisionTreeRiskClassifier(profile: AccountProfile, username: string): {
     riskPercentage: number;
     indicators: string[];
     status: 'genuine' | 'suspicious' | 'fake';
@@ -82,90 +82,82 @@ export class FakeDetector {
     const indicators: string[] = [];
     let risk = 0;
 
-    if (profile.followerCount < 1000) {
-      if (!profile.isVerified) {
-        if (profile.accountAge < 90) {
-          risk = 85;
-          indicators.push(
-            'Low follower count',
-            'Unverified account',
-            'New account age'
-          );
-        } else {
-          risk = 70;
-          indicators.push(
-            'Low follower count',
-            'Unverified account'
-          );
-        }
-      } else {
-        risk = 55;
-        indicators.push(
-          'Low follower count',
-          'Verified account'
-        );
-      }
-    } else {
-      if (profile.engagementRate < 0.5) {
-        if (profile.postFrequency > 10) {
-          risk = 75;
-          indicators.push(
-            'Very low engagement rate',
-            'Unusually high posting frequency'
-          );
-        } else {
-          if (/^[a-zA-Z]+\d{4,}$/.test(username) || /^\w+_\w+_\d+$/.test(username) || /^(user|account)\d+$/.test(username)) {
-            risk = 65;
-            indicators.push('Suspicious username pattern', 'Very low engagement rate');
-          } else {
-            risk = 35;
-            indicators.push('Very low engagement rate');
-          }
-        }
-      } else {
-        if (profile.profileCompleteness < 50) {
-          risk = 40;
-          indicators.push('Incomplete profile information');
-        } else {
-          if (profile.postFrequency < 0.1) {
-            risk = 50;
-            indicators.push('Very low activity level');
-          } else {
-            risk = 20;
-            indicators.push('Normal profile indicators');
-          }
-        }
-      }
-    }
-
-    const followerRatio = profile.followerCount / (profile.followingCount || 1);
-    if (followerRatio < 0.1 && profile.followingCount > 1000) {
+    // Follower count scoring
+    if (profile.followerCount < 500) {
+      risk += 30;
+      indicators.push('Very low follower count');
+    } else if (profile.followerCount < 1000) {
       risk += 15;
-      indicators.push('Extremely low follower-to-following ratio');
-    } else if (followerRatio < 0.5 && profile.followingCount > 500) {
-      risk += 8;
-      indicators.push('Low follower-to-following ratio');
+      indicators.push('Low follower count');
     }
 
-    if (!profile.hasBio) {
+    // Verification and account age signals
+    if (!profile.isVerified) {
+      risk += 25;
+      indicators.push('Account not verified');
+    } else if (profile.accountAge > 1000) {
+      risk -= 20;
+      indicators.push('Long-standing verified account');
+    }
+
+    // Account age
+    if (profile.accountAge < 90) {
+      risk += 20;
+      indicators.push('New account age');
+    } else if (profile.accountAge < 365) {
+      risk += 5;
+    }
+
+    // Engagement rate anomalies
+    if (profile.engagementRate < 1) {
+      risk += 30;
+      indicators.push('Very low engagement rate');
+    } else if (profile.engagementRate > 15) {
+      risk += 15;
+      indicators.push('Unusually high engagement rate');
+    }
+
+    // Post frequency anomalies
+    if (profile.postFrequency > 8) {
+      risk += 15;
+      indicators.push('High posting frequency');
+    } else if (profile.postFrequency < 0.05) {
       risk += 10;
-      indicators.push('Empty bio/description');
+      indicators.push('Very inactive account');
+    }
+
+    // Profile completeness/bio
+    if (!profile.hasBio) {
+      risk += 15;
+      indicators.push('Missing bio');
     }
     if (!profile.hasProfilePicture) {
-      risk += 12;
-      indicators.push('No profile picture');
-    }
-    if (profile.accountAge > 1000) {
-      risk -= 10;
-    }
-    if (profile.isVerified) {
-      risk -= 20;
+      risk += 20;
+      indicators.push('Missing profile picture');
     }
 
-    risk = Math.min(95, Math.max(15, risk));
+    // Suspicious username patterns
+    if (/^[a-zA-Z]+\d{4,}$/.test(username) || /^\w+_\w+_\d+$/.test(username) || /^(user|account)\d+$/.test(username)) {
+      risk += 20;
+      indicators.push('Suspicious username format');
+    }
 
+    // Follower-to-following ratio
+    const ratio = profile.followerCount / (profile.followingCount || 1);
+    if (ratio < 0.05 && profile.followingCount > 2000) {
+      risk += 20;
+      indicators.push('Extremely unbalanced follower-to-following ratio');
+    } else if (ratio < 0.15 && profile.followingCount > 1500) {
+      risk += 10;
+      indicators.push('Imbalanced follower-to-following ratio');
+    }
+
+    // Clamp risk score
+    risk = Math.min(95, Math.max(10, risk));
+
+    // Determine status
     let status: 'genuine' | 'suspicious' | 'fake' = 'genuine';
-    if (risk >= 70) status = 'fake';
+    if (risk >= 75) status = 'fake';
     else if (risk >= 40) status = 'suspicious';
 
     return { riskPercentage: Math.floor(risk), indicators, status };
