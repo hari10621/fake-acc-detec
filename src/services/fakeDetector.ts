@@ -64,7 +64,7 @@ export class FakeDetector {
   }
 
   private static calculateRiskScore(profile: AccountProfile, username: string) {
-    let riskScore = 0; // ✅ start at zero, not 20
+    let riskScore = 0;
     const indicators: string[] = [];
 
     // ✅ Celebrity genuine check
@@ -92,7 +92,7 @@ export class FakeDetector {
       riskScore += 15;
       indicators.push('Unhealthy follower-to-following ratio');
     } else if (ratio > 50 && profile.followerCount > 10_000) {
-      riskScore = Math.max(riskScore - 10, 0);
+      riskScore -= 5; // lighter adjustment
       indicators.push('High ratio – celebrity-like');
     }
 
@@ -136,18 +136,18 @@ export class FakeDetector {
       riskScore += 20;
       indicators.push('Very new account');
     } else if (profile.accountAge > 1000) {
-      riskScore = Math.max(riskScore - 15, 0);
+      riskScore -= 5; // softer trust signal
       indicators.push('Old account – trusted signal');
     }
 
     // Verification
     if (profile.isVerified) {
-      riskScore = Math.max(riskScore - 30, 0);
+      riskScore -= 10; // lighter trust bonus
       indicators.push('Verified badge');
     }
 
-    // ✅ Final normalization
-    const finalRiskScore = Math.min(100, Math.max(0, riskScore));
+    // ✅ Clamp score safely
+    const finalRiskScore = Math.min(100, Math.max(5, riskScore));
 
     let status: 'genuine' | 'suspicious' | 'fake';
     if (finalRiskScore <= 20) status = 'genuine';
