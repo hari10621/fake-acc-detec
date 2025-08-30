@@ -25,18 +25,53 @@ export class FakeDetector {
     'katrinakaif', 'anushkasharma', 'sonamkapoor'
   ];
 
-  // Generate realistic profile method unchanged
   private static generateRealisticProfile(username: string, platform: Platform): AccountProfile {
-    // ... as defined in your code ...
+    const isKnownLegitimate = this.knownLegitimateAccounts.some(known =>
+      username.toLowerCase().includes(known.toLowerCase()) ||
+      known.toLowerCase().includes(username.toLowerCase())
+    );
+
+    if (isKnownLegitimate) {
+      return {
+        followerCount: Math.floor(Math.random() * 50000000) + 10000000,
+        followingCount: Math.floor(Math.random() * 1000) + 100,
+        postCount: Math.floor(Math.random() * 5000) + 1000,
+        accountAge: Math.floor(Math.random() * 3000) + 1000,
+        hasProfilePicture: true,
+        hasBio: true,
+        isVerified: Math.random() > 0.1,
+        engagementRate: Math.random() * 5 + 2,
+        postFrequency: Math.random() * 2 + 0.5,
+        profileCompleteness: Math.random() * 20 + 80
+      };
+    }
+
+    const accountAge = Math.floor(Math.random() * 2000) + 30;
+    const isOldAccount = accountAge > 365;
+
+    return {
+      followerCount: Math.floor(Math.random() * (isOldAccount ? 5000 : 500)) + 10,
+      followingCount: Math.floor(Math.random() * (isOldAccount ? 2000 : 800)) + 50,
+      postCount: Math.floor(Math.random() * (isOldAccount ? 1000 : 100)) + 5,
+      accountAge,
+      hasProfilePicture: Math.random() > 0.2,
+      hasBio: Math.random() > 0.3,
+      isVerified: Math.random() > 0.95,
+      engagementRate: Math.random() * 8 + 0.5,
+      postFrequency: Math.random() * 3 + 0.1,
+      profileCompleteness: Math.random() * 40 + 40
+    };
   }
 
-  // Decision tree style risk classifier replacing calculateRiskScore
-  private static decisionTreeRiskClassifier(profile: AccountProfile, username: string): {
+  private static decisionTreeRiskClassifier(profile: AccountProfile | undefined, username: string): {
     riskPercentage: number;
     indicators: string[];
     status: 'genuine' | 'suspicious' | 'fake';
   } {
-    // Immediately classify known celebrities as genuine low-risk
+    if (!profile) {
+      throw new Error('Profile is undefined in decisionTreeRiskClassifier');
+    }
+
     if (this.knownLegitimateAccounts.some(known =>
       username.toLowerCase().includes(known.toLowerCase()) ||
       known.toLowerCase().includes(username.toLowerCase())
@@ -47,7 +82,6 @@ export class FakeDetector {
     const indicators: string[] = [];
     let risk = 0;
 
-    // Decision tree logic (nested conditions representing splits):
     if (profile.followerCount < 1000) {
       if (!profile.isVerified) {
         if (profile.accountAge < 90) {
@@ -80,7 +114,7 @@ export class FakeDetector {
             'Unusually high posting frequency'
           );
         } else {
-          if (username.match(/^[a-zA-Z]+\d{4,}$/) || username.match(/^\w+_\w+_\d+$/) || username.match(/^(user|account)\d+$/)) {
+          if (/^[a-zA-Z]+\d{4,}$/.test(username) || /^\w+_\w+_\d+$/.test(username) || /^(user|account)\d+$/.test(username)) {
             risk = 65;
             indicators.push('Suspicious username pattern', 'Very low engagement rate');
           } else {
@@ -104,7 +138,6 @@ export class FakeDetector {
       }
     }
 
-    // Apply follower-to-following ratio adjustments
     const followerRatio = profile.followerCount / (profile.followingCount || 1);
     if (followerRatio < 0.1 && profile.followingCount > 1000) {
       risk += 15;
@@ -114,26 +147,23 @@ export class FakeDetector {
       indicators.push('Low follower-to-following ratio');
     }
 
-    // Caps and adjustments
-    if (profile.hasBio === false) {
+    if (!profile.hasBio) {
       risk += 10;
       indicators.push('Empty bio/description');
     }
-    if (profile.hasProfilePicture === false) {
+    if (!profile.hasProfilePicture) {
       risk += 12;
       indicators.push('No profile picture');
     }
     if (profile.accountAge > 1000) {
-      risk -= 10; // trust boost for old account
+      risk -= 10;
     }
     if (profile.isVerified) {
-      risk -= 20; // trust boost for verified
+      risk -= 20;
     }
 
-    // Clamp risk between 15 and 95
     risk = Math.min(95, Math.max(15, risk));
 
-    // Determine status from risk
     let status: 'genuine' | 'suspicious' | 'fake' = 'genuine';
     if (risk >= 70) status = 'fake';
     else if (risk >= 40) status = 'suspicious';
@@ -141,7 +171,6 @@ export class FakeDetector {
     return { riskPercentage: Math.floor(risk), indicators, status };
   }
 
-  // generateExplanation unchanged or adapted
   private static generateExplanation(
     status: string,
     riskPercentage: number,
@@ -149,10 +178,25 @@ export class FakeDetector {
     profile: AccountProfile,
     username: string
   ): string {
-    // ... as defined in your code ...
+    if (this.knownLegitimateAccounts.some(known =>
+      username.toLowerCase().includes(known.toLowerCase()) ||
+      known.toLowerCase().includes(username.toLowerCase())
+    )) {
+      return `This appears to be a verified celebrity or public figure account with strong authenticity signals. The account shows typical patterns of a legitimate high-profile user with ${profile.followerCount.toLocaleString()} followers and verified status.`;
+    }
+
+    switch (status) {
+      case 'genuine':
+        return `This account demonstrates strong authenticity with only ${riskPercentage}% risk. Key positive signals include: ${profile.accountAge > 365 ? 'established account age' : 'reasonable account age'}, ${profile.hasProfilePicture ? 'complete profile picture' : ''}, ${profile.hasBio ? 'detailed bio' : ''}, and natural engagement patterns. The follower-to-following ratio and posting behavior appear organic.`;
+      case 'suspicious':
+        return `This account shows some concerning patterns with ${riskPercentage}% risk score. While not definitively fake, several indicators warrant caution: ${indicators.slice(0, 3).join(', ')}. The account may be legitimate but exhibits some automated or unusual behavior patterns.`;
+      case 'fake':
+        return `High probability of fake or bot account with ${riskPercentage}% risk score. Multiple red flags detected: ${indicators.slice(0, 4).join(', ')}. The combination of these factors strongly suggests this account may be artificially created or managed by automated systems.`;
+      default:
+        return 'Unable to determine account authenticity due to insufficient data.';
+    }
   }
 
-  // Replace calculateRiskScore call inside checkAccount with decisionTreeRiskClassifier
   static async checkAccount(platform: Platform, username: string): Promise<DetectionResult> {
     await new Promise(resolve => setTimeout(resolve, 2000 + Math.random() * 3000));
 
@@ -179,7 +223,10 @@ export class FakeDetector {
 
     const profile = this.generateRealisticProfile(cleanUsername, platform);
 
-    // Call the decision tree risk classifier here
+    if (!profile) {
+      throw new Error('Failed to generate profile in checkAccount');
+    }
+
     const { riskPercentage, indicators, status } = this.decisionTreeRiskClassifier(profile, cleanUsername);
 
     const explanation = this.generateExplanation(status, riskPercentage, indicators, profile, cleanUsername);
