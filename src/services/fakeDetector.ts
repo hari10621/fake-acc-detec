@@ -22,7 +22,15 @@ export class FakeDetector {
     'therock', 'vancityreynolds', 'priyankachopra',
     'deepikapadukone', 'akshaykumar', 'iamsrk',
     'amitabhbachchan', 'ranveersingh', 'aliaabhatt',
-    'katrinakaif', 'anushkasharma', 'sonamkapoor'
+    'katrinakaif', 'anushkasharma', 'sonamkapoor',
+
+    // Added Instagram/other platform celebrities and influencers
+    'billieeilish', 'dualipa', 'badgalriri', 'kendalljenner',
+    'gigihadid', 'natgeo', 'champagnepapi', 'kourtneykardash',
+    'khloekardashian', 'jenner', 'shawnmendes', 'camila_cabello',
+    'zacefron', 'mileycyrus', 'beyonce', 'ladygaga', 'justintimberlake',
+    'kevinhart4real', 'drake', 'jlo', 'bts.bighitofficial',
+    'shakira', 'nasa', 'oprah', 'handemade', 'elonmusk', 'neiltyson'
   ];
 
   private static generateRealisticProfile(username: string, platform: Platform): AccountProfile {
@@ -42,7 +50,7 @@ export class FakeDetector {
         isVerified: Math.random() > 0.1,
         engagementRate: Math.random() * 5 + 2,
         postFrequency: Math.random() * 2 + 0.5,
-        profileCompleteness: Math.random() * 20 + 80
+        profileCompleteness: Math.random() * 20 + 80,
       };
     }
 
@@ -59,7 +67,7 @@ export class FakeDetector {
       isVerified: Math.random() > 0.95,
       engagementRate: Math.random() * 8 + 0.5,
       postFrequency: Math.random() * 3 + 0.1,
-      profileCompleteness: Math.random() * 40 + 40
+      profileCompleteness: Math.random() * 40 + 40,
     };
   }
 
@@ -190,10 +198,13 @@ export class FakeDetector {
   }
 
   static async checkAccount(platform: Platform, username: string): Promise<DetectionResult> {
+    // Simulate API delay
     await new Promise(resolve => setTimeout(resolve, 2000 + Math.random() * 3000));
 
+    // Clean username
     const cleanUsername = username.replace(/^@/, '');
 
+    // Basic validation and existence simulation
     const hasReasonableLength = cleanUsername.length >= 3 && cleanUsername.length <= 30;
     const hasValidChars = /^[a-zA-Z0-9._-]+$/.test(cleanUsername);
     const exists = hasReasonableLength && hasValidChars && Math.random() > 0.05;
@@ -209,18 +220,21 @@ export class FakeDetector {
         riskPercentage: 0,
         status: 'genuine',
         indicators: ['Account not found or invalid username format'],
-        explanation: `The username "${cleanUsername}" does not exist on ${platform.name} or contains invalid characters.`
+        explanation: `The username "${cleanUsername}" does not exist on ${platform.name} or contains invalid characters.`,
       };
     }
 
+    // Generate realistic profile
     const profile = this.generateRealisticProfile(cleanUsername, platform);
 
     if (!profile) {
       throw new Error('Failed to generate profile in checkAccount');
     }
 
+    // Evaluate risk with decision tree classifier
     const { riskPercentage, indicators, status } = this.decisionTreeRiskClassifier(profile, cleanUsername);
 
+    // Generate detailed explanation
     const explanation = this.generateExplanation(status, riskPercentage, indicators, profile, cleanUsername);
 
     return {
@@ -233,7 +247,7 @@ export class FakeDetector {
       riskPercentage,
       status,
       indicators,
-      explanation
+      explanation,
     };
   }
 }
